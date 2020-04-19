@@ -1,15 +1,14 @@
-
 """
 A Python client for the HAProxy RestAPI.
-https://github.com/alexyz79/dataplane-python
+https://github.com/alexyz79/haproxy_python
 """
+
 import logging
 import requests
 from types import SimpleNamespace
-import json
-from simplejson.errors import JSONDecodeError
+from json import JSONDecodeError
 
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 
 logger = logging.getLogger(__name__)
 
@@ -73,17 +72,16 @@ class RestAPI(object):
     :param string username: Username used to authenticate against the server
     :param string password: Password used to authenticate against the server
     :param bool verify: Whether to verify certificates on SSL connections.
-    :param string version: Version of the API to use, defaults to v1
     :param float timeout: The timeout value to use, in seconds. Default is 305.
     """
 
     def __init__(
-        self,
-        url: str,
-        username: str,
-        password: str,
-        verify: bool = True,
-        timeout: int = DEFAULT_TIMEOUT,
+            self,
+            url: str,
+            username: str,
+            password: str,
+            verify: bool = True,
+            timeout: int = DEFAULT_TIMEOUT,
     ):
         self.session = requests.Session()
         self.session.verify = verify
@@ -121,18 +119,33 @@ class RestAPI(object):
         """
         Does a POST request to the specified URL.
         Returns the decoded JSON.
+        :param string url: parsed from requested path.
+        :param bool prefer_async: if True - use respond-async Prefer header.
+        :param string or json body: body can be string if services.haproxy.configuration.raw path is used, otherwise it must be json.
+        :param kwargs: params for the request
         """
         headers = {"Prefer": "respond-async"} if prefer_async else None
+        body_is_str = isinstance(body, str)
 
         if body is not None:
             if headers is None:
-                headers = {"Content-Type": "application/json"}
+                headers = {"Content-Type": "text/plain" if body_is_str else "application/json"}
             else:
-                headers.update({"Content-Type": "application/json"})
+                headers.update({"Content-Type": "text/plain" if body_is_str else "application/json"})
 
-        response = self.session.post(
-            url, headers=headers, timeout=self.timeout, json=body, params=kwargs
-        )
+        post_params = {
+            'url': url,
+            'headers': headers,
+            'timeout': self.timeout,
+            'params': kwargs
+        }
+
+        if body_is_str:
+            post_params.update({'data': body})
+        else:
+            post_params.update({'json': body})
+
+        response = self.session.post(**post_params)
 
         return self._handle_response(response)
 
@@ -150,7 +163,7 @@ class RestAPI(object):
                 headers.update({"Content-Type": "application/json"})
 
         response = self.session.put(
-            url, headers=headers, timeout=self.timeout, data=body, params=kwargs
+            url, headers=headers, timeout=self.timeout, json=body, params=kwargs
         )
         return self._handle_response(response)
 
@@ -231,7 +244,6 @@ class RestAPI(object):
         raise exception_type(response)
 
     def __call__(self, **kwargs):
-
         return self.get(self.base_url, **kwargs)
 
     def __getattr__(self, name):
@@ -239,7 +251,6 @@ class RestAPI(object):
 
 
 class RestAPIResponse(object):
-
     """
     Represents a RestAPI response
     :param requests.Response reponse: response from server
@@ -265,7 +276,6 @@ class RestAPIResponse(object):
 
 
 class RestAPIEndpoint(object):
-
     """
     Represents a RestAPI Endponint
     :param string name: name of the endpoint.
